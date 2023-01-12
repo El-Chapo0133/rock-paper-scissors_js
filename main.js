@@ -1,19 +1,20 @@
 let canvas = document.getElementById("main");
 let context = canvas.getContext("2d");
 
-
+const DEFAULT_MAP_BACKGROUND = "white";
 const MAPSIZEX = 1300;
 const MAPSIZEY = 900;
 const EDGERESTITUTION = 1;
 const COLLISIONRESTITUTION = 1;
-const NUMBEROFOBJECTS = 800;
+const NUMBEROFOBJECTS = 200;
+const g = 9.81; // this is only for fun lol
 
-const GENERATIONOBJECTMAXSPEED = 500;
-const GENERATIONOBJECTMINSPEED = 500;
+const GENERATIONOBJECTMAXSPEED = 100;
+const GENERATIONOBJECTMINSPEED = 10;
 
-const GAMEOBJECTRADIUS = 25;
+const GAMEOBJECTRADIUS = 25; // object size, as square this is theirs width and height
 
-// the rate of the display (10 makes it 1:10)
+// the rate of the display (10 makes it 1:10, X makes it 1:X)
 const DISPLAYRATE = 1;
 
 const IMAGEPAPERSRC = ".\\Resources\\paper.png";
@@ -27,6 +28,7 @@ let scissorsImage = new Image();
 scissorsImage.src = IMAGESCISSORSSRC;
 let rockImage = new Image();
 rockImage.src = IMAGEROCKSRC;
+let imageCisorsPaperRock = [scissorsImage, paperImage, rockImage];
 
 /* type graph :
     0 is cisor
@@ -36,6 +38,23 @@ rockImage.src = IMAGEROCKSRC;
     1 wins to 2
     2 wins to 0
 */
+const UNIVERSAL_POWER_GRID = [
+    /* xxxxx 0  1  2 */
+    /* 0 */ [0, 0, 2],
+    /* 1 */ [0, 1, 1],
+    /* 2 */ [2, 1, 2],
+];
+// this is a grid that define behaviours between types
+// when you enter this, you use self.type and other.type like this :
+// self.type = UNIVERSAL_POWER_GRID[self.type][other.type]
+// it basically says what it becomes on contact with other
+/** e.g.
+ * object1.type = 0; -> cisors
+ * object2.type = 1; -> paper
+ * -- CONTACT !
+ * object1.type = UNIVERSAL_POWER_GRID[object1.type][object2.type] -> UNIVERSAL_POWER_GRID[0][1] -> 0 which's correct because cisors stays at cisors when touching papers
+ * object2.type = UNIVERSAL_POWER_GRID[object2.type][object1.type] -> UNIVERSAL_POWER_GRID[1][0] -> 0 which's correct because papers becomes cisors when touching cisors
+ */
 
 
 let oldTimeStamp = 0;
@@ -72,12 +91,7 @@ class Square extends GameObject {
     }
 
     draw() {
-        // this.context.fillStyle = '#ff8080';
-        // this.context.fillRect(this.x, this.y, this.width, this.height);
-
-        // console.log(this.vx, this.vy);
-
-        this.context.drawImage(this.type === 0 ? scissorsImage : this.type === 1 ? paperImage : rockImage, this.x, this.y, this.size, this.size);
+        this.context.drawImage(imageCisorsPaperRock[this.type], this.x, this.y, this.size, this.size);
     }
 }
 
@@ -87,7 +101,6 @@ let gameObjects = [];
 
 
 function createWorld() {
-
     // gameObjects.push(new Square(context,
     //     500,
     //     350,
@@ -105,14 +118,15 @@ function createWorld() {
     //     1,
     // ));
 
+    const possibleTypes = UNIVERSAL_POWER_GRID.length;
     for (let i = 0; i < NUMBEROFOBJECTS; i++) {
         gameObjects.push(new Square(context,
             Math.floor(Math.random() * MAPSIZEX),
             Math.floor(Math.random() * MAPSIZEY),
-            Math.floor(Math.random() * GENERATIONOBJECTMAXSPEED) - GENERATIONOBJECTMINSPEED,
-            Math.floor(Math.random() * GENERATIONOBJECTMAXSPEED) - GENERATIONOBJECTMINSPEED,
-            GAMEOBJECTRADIUS,
-            Math.floor(Math.random() * 3),
+            (Math.floor(Math.random() * GENERATIONOBJECTMAXSPEED) - GENERATIONOBJECTMINSPEED) / DISPLAYRATE,
+            (Math.floor(Math.random() * GENERATIONOBJECTMAXSPEED) - GENERATIONOBJECTMINSPEED) / DISPLAYRATE,
+            GAMEOBJECTRADIUS / DISPLAYRATE,
+            Math.floor(Math.random() * possibleTypes),
         ));
     }
 
@@ -120,7 +134,7 @@ function createWorld() {
 }
 function clearCanvas() {
     context.beginPath();
-    context.fillStyle = "white";
+    context.fillStyle = DEFAULT_MAP_BACKGROUND;
     context.fillRect(0, 0, MAPSIZEX, MAPSIZEY);
     context.closePath();
 }
@@ -139,7 +153,7 @@ function detectCollisions() {
         for (let j = i + 1; j < temp_length; j++)
         {
             object2 = gameObjects[j];
-            if (rectIntersect(object1.x, object1.y, object1.size, object1.size, object2.x, object2.y, object2.size, object1.size)) {
+            if (isSquaresIntersect(object1.x, object1.y, object1.size, object2.x, object2.y, object2.size)) {
                 collisionShock(object1, object2);
             }
         }
@@ -147,18 +161,16 @@ function detectCollisions() {
 }
 
 
-function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
-    if (x2 > w1 + x1 || x1 > w2 + x2 || y2 > h1 + y1 || y1 > h2 + y2) {
+// hitboxes are squares, much more easier
+function isRectanglesIntersect(xPos1, yPos1, width1, height1, xPos2, yPos2, width2, height2) {
+    if (xPos2 > width1 + xPos1 || xPos1 > width2 + xPos2 || yPos2 > height1 + yPos1 || yPos1 > height2 + yPos2) {
         return false;
     }
     return true;
 }
-
-
-// function circleIntersect(x1, y1, r1, x2, y2, r2) {
-//     let circleDistance = (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2);
-//     return circleDistance <= ((r1 / DISPLAYRATE + r2 / DISPLAYRATE) * (r1 / DISPLAYRATE + r2 / DISPLAYRATE))
-// }
+function isSquaresIntersect(xPos1, yPos1, size1, xPos2, yPos2, size2) {
+    return isRectanglesIntersect(xPos1, yPos1, size1, size1, xPos2, yPos2, size2, size2);
+}
 
 
 function collisionShock(object1, object2) {
@@ -176,62 +188,31 @@ function collisionShock(object1, object2) {
     object2.vx += speed * vCollisionNorm.x * COLLISIONRESTITUTION;
     object2.vy += speed * vCollisionNorm.y * COLLISIONRESTITUTION;
     
-    /* type graph :
-        0 is cisor
-        1 is paper
-        2 is rock
-        0 wins to 1
-        1 wins to 2
-        2 wins to 0
-    */
-
-    // console.log(object1.type, object2.type);
-    // THIS is horrible but "flemme"
     if (object1.type === object2.type) {
         return;
     }
-    if (object1.type === 0 && object2.type === 1) {
-        object2.type = 0;
-    }
-    else if (object1.type === 1 && object2.type === 2) {
-        object2.type = 1;
-    }
-    else if (object1.type === 2 && object2.type === 0) {
-        object2.type = 2;
-    }
-    else if (object1.type === 1 && object2.type === 0) {
-        object1.type = 0;
-    }
-    else if (object1.type === 2 && object2.type === 1) {
-        object1.type = 1;
-    }
-    else if (object1.type === 0 && object2.type === 2) {
-        object1.type = 2;
-    }
-
-    // console.log(object1.type, object2.type);
+    // this define the object.type from the UNIVERSAL_POWER_GRID using self.type and other.type, refer to comments on top of 'UNIVERSAL_POWER_GRID'
+    object1.type = UNIVERSAL_POWER_GRID[object1.type][object2.type]
+    object2.type = UNIVERSAL_POWER_GRID[object2.type][object1.type]
 }
 
 function detectEdgeCollisions() {
-    let object;
     for (let i = 0; i < gameObjects.length; i++)
     {
-        object = gameObjects[i];
-
-        if (object.x < 0) {
-            object.vx = Math.abs(object.vx) * EDGERESTITUTION;
-            object.x = 0;
-        } else if (object.x > MAPSIZEX - object.size) {
-            object.vx = -Math.abs(object.vx) * EDGERESTITUTION;
-            object.x = MAPSIZEX - object.size;
+        if (gameObjects[i].x < 0) {
+            gameObjects[i].vx = Math.abs(gameObjects[i].vx) * EDGERESTITUTION;
+            gameObjects[i].x = 0;
+        } else if (gameObjects[i].x > MAPSIZEX - gameObjects[i].size) {
+            gameObjects[i].vx = -Math.abs(gameObjects[i].vx) * EDGERESTITUTION;
+            gameObjects[i].x = MAPSIZEX - gameObjects[i].size;
         }
 
-        if (object.y < 0) {
-            object.vy = Math.abs(object.vy) * EDGERESTITUTION;
-            object.y = 0;
-        } else if (object.y > MAPSIZEY - object.size) {
-            object.vy = -Math.abs(object.vy) * EDGERESTITUTION;
-            object.y = MAPSIZEY - object.size;
+        if (gameObjects[i].y < 0) {
+            gameObjects[i].vy = Math.abs(gameObjects[i].vy) * EDGERESTITUTION;
+            gameObjects[i].y = 0;
+        } else if (gameObjects[i].y > MAPSIZEY - gameObjects[i].size) {
+            gameObjects[i].vy = -Math.abs(gameObjects[i].vy) * EDGERESTITUTION;
+            gameObjects[i].y = MAPSIZEY - gameObjects[i].size;
         }
     }
 }
@@ -256,6 +237,20 @@ function gameLoop(timeStamp) {
     
         window.requestAnimationFrame(gameLoop);
 }
+
+
+function validateUniverseThings() {
+    let universalPowerGridLength = UNIVERSAL_POWER_GRID.length;
+    UNIVERSAL_POWER_GRID.forEach(type => {
+        if (type.length != universalPowerGridLength) {
+            throw new Error("UNIVERSAL_POWER_GRID doesn't have a square shape (all 'lines' of 'UNIVERSAL_POWER_GRID' must have the same length than 'UNIVERSAL_POWER_GRID')");
+        }
+    });
+}
+
+
+
+validateUniverseThings();
 
 createWorld();
 gameLoop(1);
