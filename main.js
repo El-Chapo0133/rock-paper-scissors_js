@@ -140,21 +140,13 @@ function clearCanvas() {
 }
 
 function detectCollisions() {
-    let object1, object2;
-
-    for (let i = 0; i < gameObjects.length; i++) {
-        gameObjects[i].isColliding = false;
-    }
-
     let temp_length = gameObjects.length;
     for (let i = 0; i < temp_length; i++)
     {
-        object1 = gameObjects[i];
         for (let j = i + 1; j < temp_length; j++)
         {
-            object2 = gameObjects[j];
-            if (isSquaresIntersect(object1.x, object1.y, object1.size, object2.x, object2.y, object2.size)) {
-                collisionShock(object1, object2);
+            if (isSquaresIntersect(gameObjects[i].x, gameObjects[i].y, gameObjects[i].size, gameObjects[j].x, gameObjects[j].y, gameObjects[j].size)) {
+                collisionShock(gameObjects[i], gameObjects[j]);
             }
         }
     }
@@ -246,6 +238,10 @@ function validateUniverseThings() {
             throw new Error("UNIVERSAL_POWER_GRID doesn't have a square shape (all 'lines' of 'UNIVERSAL_POWER_GRID' must have the same length than 'UNIVERSAL_POWER_GRID')");
         }
     });
+
+    if (imageCisorsPaperRock.length != universalPowerGridLength) {
+        throw new Error("Not enough images for the possible types (length of 'imageCisorsPaperRock' is not the same as 'UNIVERSAL_POWER_GRID')");
+    }
 }
 
 
